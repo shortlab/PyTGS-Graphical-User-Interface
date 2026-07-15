@@ -3,7 +3,7 @@ Repository for a GUI that handles acquisition, processing and display of di-homo
 
 To run on Windows, download and open the executable file in the dist folder. For now, a popup will appear warning you against unsigned software, you may click advanced and run anyway to bypass this. 
 
-For Python users:
+For Python users on Windows and elsewhere:
 
 ## Prerequisites
 
