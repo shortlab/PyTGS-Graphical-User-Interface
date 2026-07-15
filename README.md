@@ -59,11 +59,9 @@ For Python users:
    PyTGS-venv\Scripts\activate
    ```
 
-2. Edit `config.yaml` with your data path and desired fitting parameters.
-
-3. Run the analysis:
+2. Run the gui:
    ```bash
-   python main.py
+   python tgs_gui.py
    ```
 
    Fitting results and figures will be saved in `fit/` and `figures/` directories, respectively.
