@@ -1,3 +1,6 @@
 # PyTGS
+Repository for a GUI that handles acquisition, processing and display of di-homodyne transient grating signals. Based on the PyTGS script created by A. Aurora and stemming from scripts by C. A. Dennett, B.R. Dacus, A.P.C. Wylie, E. Botica Artalejo, K. Zoubkova and S. Engebretson. 
 
-A Python tool for thermo-mechanical property analysis of transient grating spectroscopy (TGS) signals. Input is a raw TGS signal and output is thermal diffusivity, surface acoustic wave speed, and other fitting constants of the characteristic TGS equation.
+To run on Windows, download and open the executable file in the dist folder.
+
+For Python users, running tgs_gui.py will open the gui.
