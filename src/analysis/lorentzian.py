@@ -1,0 +1,148 @@
+from typing import List, Tuple, Union
+
+import numpy as np
+from scipy.optimize import curve_fit
+
+from src.core.path import Paths
+from src.analysis.functions import lorentzian_function, skewed_super_lorentzian_function
+from src.core.plots import plot_fft_lorentzian
+
+def lorentzian_fit(config: dict, paths: Paths, file_id: int, fft: np.ndarray, signal_proportion: float = 1.0, frequency_bounds: List[Union[float, float]] = [0.1, 0.9], dc_filter_range: List[Union[int, int]] = [0, 12000], bimodal_fit: bool = False, use_skewed_super_lorentzian: bool = True) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+    """
+    Fit Lorentzian peak to FFT signal.
+
+    This function performs either single or bimodal Lorentzian peak fitting on FFT data.
+    It includes DC filtering, signal normalization, and optional partial signal fitting
+    based on a proportion of the peak height.
+
+    Parameters:
+        config (dict): configuration dictionary
+        paths (Paths): paths to data, figures, and fit files
+        file_id (int): filename snippet
+        fft (np.ndarray): FFT signal array of shape (N, 2) containing frequency and amplitude
+        signal_proportion (float, optional): proportion of signal to include in fit
+        frequency_range (List[float], optional): [min, max] frequency bounds for fitting [GHz]
+        dc_filter_range (List[int], optional): [start, end] indices for DC filtering
+        bimodal_fit (bool, optional): whether to perform bimodal peak fitting
+        use_super_lorentzian (bool, optional): whether to use super-Lorentzian for flat-top peaks
+        use_skewed_lorentzian (bool, optional): whether to use skewed Lorentzian for asymmetric peaks
+
+    Returns:
+        Tuple: contains the following elements:
+            - peak (np.ndarray): peak frequency [Hz]
+            - peak_error (np.ndarray): peak frequency error [Hz]
+            - fwhm (np.ndarray): full width at half maximum [Hz]
+            - tau (np.ndarray): time constant [s]
+            - snr (float): signal-to-noise ratio [dB]
+            - frequency_bounds (List[float, float]): frequency bounds for fitting [GHz]
+            - fit_function (function): Fitting function used
+            - popt (np.ndarray): optimized fit parameters
+    """
+    start, end = dc_filter_range
+    fft[:, 0] = fft[:, 0] / 1e9  # Hz to GHz
+    fft[:start, 1] = 0           
+    
+    max_value = np.max(fft[start:, 1])
+    peak_idx = np.argmax(fft[start:, 1]) 
+    peak_loc = fft[peak_idx, 0]
+
+    fft[:, 1] /= max_value
+    min_freq, max_freq = frequency_bounds
+    neg_idx = np.searchsorted(fft[:, 0], min_freq)
+    pos_idx = np.searchsorted(fft[:, 0], max_freq)
+    neg_idx = max(neg_idx, start)
+    pos_idx = min(pos_idx, len(fft))
+    
+    if signal_proportion != 1.0:
+        fft_in_bounds = fft[neg_idx:pos_idx]
+        if len(fft_in_bounds) > 0:
+            local_peak_idx = np.argmax(fft_in_bounds[:, 1])
+            local_peak_loc = fft_in_bounds[local_peak_idx, 0]
+            local_peak_val = fft_in_bounds[local_peak_idx, 1]
+            
+            threshold = signal_proportion * local_peak_val
+        
+            left_idx = neg_idx + local_peak_idx
+            while left_idx > neg_idx and fft[left_idx, 1] > threshold:
+                left_idx -= 1
+            
+            right_idx = neg_idx + local_peak_idx
+            while right_idx < pos_idx and fft[right_idx, 1] > threshold:
+                right_idx += 1
+            
+            neg_idx = max(neg_idx, left_idx)
+            pos_idx = min(pos_idx, right_idx)
+    
+    if pos_idx - neg_idx < 10:
+        min_freq = max(0.0, min_freq - 0.1)
+        max_freq = min(1.0, max_freq + 0.1)
+        neg_idx = np.searchsorted(fft[:, 0], min_freq)
+        pos_idx = np.searchsorted(fft[:, 0], max_freq)
+    
+    peak_loc_clipped = np.clip(peak_loc, min_freq, max_freq)
+    
+    if use_skewed_super_lorentzian:
+        fit_function = skewed_super_lorentzian_function
+        initial_guess = [1e-2, peak_loc_clipped, 0.05, 0, 0.5, -0.5]
+        lower_bounds = [0, min_freq, 1e-3, 0, 0.1, -2.0]
+        upper_bounds = [1, max_freq, 0.2, 1, 0.9, 2.0]
+    else:
+        fit_function = lorentzian_function
+        initial_guess = [1e-4, peak_loc_clipped, 1e-2, 0]
+        lower_bounds = [0, min_freq, 1e-3, 0]
+        upper_bounds = [1, max_freq, 0.05, 1]
+    
+    bounds = (lower_bounds, upper_bounds)
+
+    try:
+        popt, pcov = curve_fit(fit_function, fft[neg_idx:pos_idx, 0], fft[neg_idx:pos_idx, 1], 
+                              p0=initial_guess, bounds=bounds)
+    except Exception as e:
+        print(f"Warning: Lorentzian fit failed: {e}")
+        popt = initial_guess
+        pcov = np.eye(len(initial_guess)) * 1e-6
+    
+    if use_skewed_super_lorentzian:
+        _, x0, W, _, _, _ = popt
+        _, x0_error, _, _, _, _ = np.sqrt(np.diag(pcov))
+    else:
+        _, x0, W, _ = popt
+        _, x0_error, _, _ = np.sqrt(np.diag(pcov))
+    
+    saw_frequency = x0 * 1e9
+    saw_frequency_error = x0_error * 1e9
+    fwhm = 2 * W * 1e9
+    tau = 1 / (np.pi * fwhm)
+
+    if bimodal_fit:
+        bimodal_start = round(0.1 * peak_idx)
+        bimodal_end = round(0.75 * peak_idx)
+
+        fft2 = fft[:, 1] - fit_function(fft[:, 0], *popt)
+
+        peak_idx2 = np.argmax(fft2[bimodal_start:bimodal_end]) + bimodal_start
+        peak_loc2 = fft[peak_idx2, 0]
+
+        initial_guess2 = [1e-4, peak_loc2, 0.01, 0]
+        popt2, pcov2 = curve_fit(fit_function, fft[:, 0], fft2, p0=initial_guess2, bounds=bounds)
+        _, x02, W2, _ = popt2
+        _, x02_error, _, _ = np.sqrt(np.diag(pcov2))
+        saw_frequency2 = x02 * 1e9
+        saw_frequency_error2 = x02_error * 1e9
+        fwhm2 = 2 * W2 * 1e9
+        tau2 = 1 / (np.pi * fwhm2)
+
+        saw_frequency = np.array([saw_frequency, saw_frequency2])
+        saw_frequency_error = np.array([saw_frequency_error, saw_frequency_error2])
+        fwhm = np.array([fwhm, fwhm2])
+        tau = np.array([tau, tau2])
+        
+    fft_noise = np.column_stack((fft[:, 0], fft[:, 1] - fit_function(fft[:, 0], *popt)))
+    signal_power = np.mean(fft[:, 1] ** 2)
+    noise_power = np.mean(fft_noise[:, 1] ** 2)
+    snr = 10 * np.log10(signal_power / noise_power)
+
+    if config['plot']['fft_lorentzian']:
+        plot_fft_lorentzian(paths, file_id, fft[neg_idx:pos_idx], frequency_bounds, fit_function, popt)
+
+    return saw_frequency, saw_frequency_error, fwhm, tau, snr, frequency_bounds, fit_function, popt, fft[neg_idx:pos_idx], fft, fit_function(np.linspace(min_freq, max_freq, 500), *popt)

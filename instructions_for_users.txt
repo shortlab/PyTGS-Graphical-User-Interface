@@ -1,0 +1,4 @@
+Instructions for users:
+For end users (no Python installation needed):
+
+    Run the PyTGS.exe executable
