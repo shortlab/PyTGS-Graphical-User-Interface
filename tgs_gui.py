@@ -250,51 +250,103 @@ class TGSApp:
             thread.start()
 
     def create_button(self, parent, text, command=None, state='normal', height=None, bg_color=None, fg_color=None):
-        """Create a styled button with consistent hover effects"""
-        # Default padding - reduced height by setting smaller pady
-        padx_val = 12
-        pady_val = 3 if height == 'small' else 6
-        
-        # Use custom colors if provided, otherwise use theme defaults
-        button_bg = bg_color if bg_color else self.button_color
-        button_fg = fg_color if fg_color else self.fg_color
-        
-        # For red buttons, use a darker hover color
-        if bg_color == '#d32f2f':
-            hover_bg = '#b71c1c'  # Darker red for hover
-        else:
-            hover_bg = self.accent_hover
-        
-        btn = tk.Button(parent, text=text,
-                    bg=button_bg, fg=button_fg,
-                    activebackground=hover_bg,
-                    activeforeground=button_fg,
-                    relief=tk.FLAT, bd=0,
-                    padx=padx_val, pady=pady_val,
-                    font=("Arial", 9 if height == 'small' else 10, 'bold' if bg_color else 'normal'),
-                    cursor="hand2",
-                    state=state)
-        
-        # Only set the command once
-        if command and state == 'normal':
-            btn.config(command=command)
-        
-        # Add hover effects
-        def on_enter(e):
-            if state == 'normal':
-                btn.config(bg=hover_bg)
-        
-        def on_leave(e):
-            if state == 'normal':
-                btn.config(bg=button_bg)
-        
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-        
-        # Configure the button to expand and fill the available space
-        btn.config(highlightthickness=0)
-        
-        return btn
+        """Create a styled button that renders consistently on Windows and macOS.
+
+        macOS Aqua ignores tk.Button background colors (buttons stay white), which
+        makes light label text unreadable. Use ttkbootstrap/ttk styles instead so
+        bg/fg paint the same on both platforms.
+        """
+        style_name = self._button_style_for_colors(bg_color, fg_color, height)
+
+        kwargs = {
+            'text': text,
+            'style': style_name,
+            'state': state,
+            'cursor': 'hand2',
+        }
+        if command is not None:
+            kwargs['command'] = command
+
+        return tb.Button(parent, **kwargs)
+
+    def _button_style_for_colors(self, bg_color=None, fg_color=None, height=None):
+        """Map optional colors to a registered ttk button style name."""
+        small = (height == 'small')
+        bg_key = (bg_color or '').lower()
+        if bg_key in {self.danger_color.lower(), '#d32f2f', '#9b2c2c'}:
+            return 'PyTGS.Danger.Small.TButton' if small else 'PyTGS.Danger.TButton'
+        if bg_key in {self.primary_color.lower(), '#1976d2', '#1565c0', '#005a9e'}:
+            return 'PyTGS.Primary.Small.TButton' if small else 'PyTGS.Primary.TButton'
+        if bg_color:
+            # One-off custom color: register a stable style key from the hex values
+            key = f"PyTGS.Custom.{bg_color.lstrip('#')}.{(fg_color or 'fff').lstrip('#')}"
+            style_name = f"{key}.Small.TButton" if small else f"{key}.TButton"
+            if style_name not in self._registered_button_styles:
+                self._register_button_style(
+                    style_name,
+                    bg_color,
+                    fg_color or '#ffffff',
+                    self._darken_hex(bg_color, 0.15),
+                    bold=True,
+                    small=small,
+                )
+            return style_name
+        return 'PyTGS.Small.TButton' if small else 'PyTGS.TButton'
+
+    @staticmethod
+    def _darken_hex(hex_color, factor=0.15):
+        """Darken a #RRGGBB color by factor (0-1) for hover states."""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        r = max(0, int(r * (1 - factor)))
+        g = max(0, int(g * (1 - factor)))
+        b = max(0, int(b * (1 - factor)))
+        return f'#{r:02x}{g:02x}{b:02x}'
+
+    def _register_button_style(self, style_name, bg, fg, hover_bg, bold=False, small=False):
+        """Register a ttk button style that paints on both Windows and macOS."""
+        style = ttk.Style()
+        font = ("Arial", 9 if small else 10, 'bold' if bold else 'normal')
+        padding = (12, 3) if small else (12, 6)
+        style.configure(
+            style_name,
+            background=bg,
+            foreground=fg,
+            bordercolor=bg,
+            darkcolor=bg,
+            lightcolor=bg,
+            focuscolor=bg,
+            relief='flat',
+            borderwidth=0,
+            padding=padding,
+            font=font,
+        )
+        style.map(
+            style_name,
+            background=[
+                ('pressed', hover_bg),
+                ('active', hover_bg),
+                ('disabled', self._darken_hex(bg, 0.35)),
+            ],
+            foreground=[
+                ('disabled', '#888888'),
+            ],
+            bordercolor=[
+                ('pressed', hover_bg),
+                ('active', hover_bg),
+                ('disabled', self._darken_hex(bg, 0.35)),
+            ],
+            darkcolor=[
+                ('pressed', hover_bg),
+                ('active', hover_bg),
+            ],
+            lightcolor=[
+                ('pressed', hover_bg),
+                ('active', hover_bg),
+            ],
+            focuscolor=[('focus', bg)],
+        )
+        self._registered_button_styles.add(style_name)
 
     def setup_theme(self):
         """Configure modern dark theme - remove all borders"""
@@ -306,6 +358,12 @@ class TGSApp:
         self.button_color = '#3c3c3c'
         self.entry_bg = '#3c3c3c'
         self.accent_hover = '#005a9e'
+        # Accent action colors (painted via ttk styles for macOS compatibility)
+        self.danger_color = '#9B2C2C'
+        self.danger_hover = '#7A2323'
+        self.primary_color = '#1565C0'
+        self.primary_hover = '#0D47A1'
+        self._registered_button_styles = set()
         
         self.root.configure(background=self.bg_color)
         
@@ -330,6 +388,26 @@ class TGSApp:
                 background=[('selected', self.select_color)])
         
         style.configure('Panel.TFrame', background=self.panel_bg)
+
+        # Cross-platform button styles (ttk paints bg/fg; tk.Button does not on macOS)
+        self._register_button_style(
+            'PyTGS.TButton', self.button_color, self.fg_color, self.accent_hover, bold=False, small=False
+        )
+        self._register_button_style(
+            'PyTGS.Small.TButton', self.button_color, self.fg_color, self.accent_hover, bold=False, small=True
+        )
+        self._register_button_style(
+            'PyTGS.Danger.TButton', self.danger_color, '#ffffff', self.danger_hover, bold=True, small=False
+        )
+        self._register_button_style(
+            'PyTGS.Danger.Small.TButton', self.danger_color, '#ffffff', self.danger_hover, bold=True, small=True
+        )
+        self._register_button_style(
+            'PyTGS.Primary.TButton', self.primary_color, '#ffffff', self.primary_hover, bold=True, small=False
+        )
+        self._register_button_style(
+            'PyTGS.Primary.Small.TButton', self.primary_color, '#ffffff', self.primary_hover, bold=True, small=True
+        )
 
     def on_window_resize(self, event):
         """Maintain sash position proportion when window is resized (debounced)"""
@@ -938,7 +1016,7 @@ class TGSApp:
         self.operator_entry = ttk.Entry(row4, textvariable=self.operator_var, width=10)
         self.operator_entry.pack(side='left', padx=(0, 15))
         
-        lbl2 = ttk.Label(row4, text="Grating (µm):", width=12, anchor='e')
+        lbl2 = ttk.Label(row4, text="Grating Λ (µm):", width=12, anchor='e')
         lbl2.pack(side='left', padx=(0, 8))
         grating_options = ['1.6', '1.9', '2.2', '2.5', '2.8', '3.1', '3.4', '3.7', 
                         '4.0', '4.2', '4.4', '4.6', '4.9', '5.2', '5.5', '5.8', 
@@ -988,44 +1066,15 @@ class TGSApp:
         acq_container1 = ttk.Frame(acq_row1)
         acq_container1.pack(anchor='center')
 
-        # Create RED "Acquire data" button with explicit styling
-        self.acquire_button = tk.Button(
-            acq_container1, 
-            text="Acquire data", 
+        # Create RED "Acquire data" button (ttk style — works on macOS and Windows)
+        self.acquire_button = self.create_button(
+            acq_container1,
+            text="Acquire data",
             command=self.acquire_rigol_data,
-            bg='#9B2C2C',  # Muted brick red for dark theme
-            fg='white',
-            activebackground='#7A2323',
-            activeforeground='white',
-            relief=tk.RAISED,  # Changed from FLAT to see if theme is forcing flat
-            bd=1,
-            padx=20, 
-            pady=8,
-            font=("Arial", 10, 'bold'),
-            cursor="hand2",
-            highlightthickness=0,
-            highlightbackground='#d32f2f',  # Force highlight color
-            highlightcolor='#d32f2f'
+            bg_color=self.danger_color,
+            fg_color='white',
         )
         self.acquire_button.pack(side='left', padx=(0, 10))
-
-        # Force update colors after creation
-        self.acquire_button.configure(bg='#9B2C2C', fg='white')
-        self.acquire_button.update_idletasks()
-
-        # Add hover effects
-        def on_acquire_enter(e):
-            if self.acquire_button['state'] != 'disabled':
-                self.acquire_button.config(bg='#7A2323')
-                #self.log_message(f"[DEBUG] Button hover - bg changed to #f44336")
-
-        def on_acquire_leave(e):
-            if self.acquire_button['state'] != 'disabled':
-                self.acquire_button.config(bg='#9B2C2C')
-                #self.log_message(f"[DEBUG] Button leave - bg changed back to #d32f2f")
-
-        self.acquire_button.bind("<Enter>", on_acquire_enter)
-        self.acquire_button.bind("<Leave>", on_acquire_leave)
 
         # Add tooltip separately
         self.add_tooltip(self.acquire_button, "Acquire data from oscilloscope")
@@ -3811,7 +3860,7 @@ class TGSApp:
         spacing_row = ttk.Frame(frame, style='Panel.TFrame')
         spacing_row.pack(fill='x', pady=8)
         
-        lbl = ttk.Label(spacing_row, text="Grating (µm):", background='')
+        lbl = ttk.Label(spacing_row, text="Grating Λ (µm):", background='')
         lbl.pack(side='left', padx=(0, 15))
         self.add_tooltip(lbl, "Calculated grating spacing from calibration (or manually entered)")
         
@@ -3988,9 +4037,14 @@ class TGSApp:
         btn.pack(side='left')
         self.add_tooltip(btn, "Browse to select log file location")
         
-        # Run button - normal button
-        self.run_button = self.create_button(export_frame, text="Run batch process", 
-                                            command=self.run_batch)
+        # Run button - primary blue (ttk style — consistent on macOS and Windows)
+        self.run_button = self.create_button(
+            export_frame,
+            text="Run batch process",
+            command=self.run_batch,
+            bg_color=self.primary_color,
+            fg_color='white',
+        )
         self.run_button.pack(fill='x', pady=12)
         self.add_tooltip(self.run_button, "Start batch processing of all files in the queue")
         

@@ -220,7 +220,7 @@ def process_signal(config: dict, paths: Paths, file_idx: int, pos_file: str, neg
 
     pump_time_idx, end_time = find_pump_time(pos, neg, initial_samples)
     time_step = pos[1, 0] - pos[0, 0]
-    end_idx = int(end_time / time_step) - 36
+    end_idx = pump_time_idx + int(end_time / time_step)# - 36
 
     reference_time = neg[pump_time_idx, 0]
     if grating_spacing < GRATING_SPACING_THRESHOLD:
