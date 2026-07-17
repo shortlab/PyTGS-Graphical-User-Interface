@@ -1,0 +1,13 @@
+{
+  "scope_type": "Rigol",
+  "scope_address": "TCPIP::169.254.228.210::INSTR",
+  "data_directory": "C:\\Users\\short\\Documents\\Data",
+  "study_name": "Tungsten_Calibration",
+  "run_name": "spot1",
+  "operator": "Angus",
+  "acq_grating": "6.4",
+  "num_traces": "8192",
+  "trigger_rate": "1",
+  "continuous_acq": false,
+  "autofit": true
+}

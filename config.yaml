@@ -1,0 +1,35 @@
+path: C:\Users\apcwy\OneDrive - Massachusetts Institute of Technology\MIT\TGS\Data\UZr\U30Zr_U30Zr\2026-07-07
+study_names: ''
+idxs: ''
+signal_process:
+  heterodyne: di-homodyne
+  null_point: 2
+  initial_samples: 50
+  baseline_correction:
+    enabled: false
+    pos: ''
+    neg: ''
+fft:
+  signal_proportion: 0.5
+  use_derivative: true
+  analysis_type: psd
+lorentzian:
+  signal_proportion: 1.0
+  frequency_bounds:
+  - 0.1
+  - 0.9
+  dc_filter_range:
+  - 0
+  - 50000
+  bimodal_fit: false
+  use_skewed_super_lorentzian: false
+tgs:
+  grating_spacing: 3.5407
+  signal_proportion: 1.0
+  maxfev: 1000000
+plot:
+  signal_process: false
+  fft_lorentzian: true
+  tgs: true
+  settings:
+    num_points: 0

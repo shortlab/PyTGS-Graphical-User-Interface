@@ -90,57 +90,44 @@ class ToolTip:
         widget.bind('<Leave>', self.leave)
     
     def enter(self, event=None):
-        # Get cursor position
-        x = self.widget.winfo_pointerx()
-        y = self.widget.winfo_pointery()
+        root = self.widget.winfo_toplevel()
         
-        # Create tooltip window
-        self.tip_window = tw = tk.Toplevel(self.widget)
+        # Get cursor position using the root window's method
+        # This should give coordinates relative to the root window's screen
+        cursor_x = root.winfo_pointerx()
+        cursor_y = root.winfo_pointery()
+        
+        self.tip_window = tw = tk.Toplevel(root)
         tw.wm_overrideredirect(True)
         
-        # Create label with word wrapping
         label = tk.Label(tw, text=self.text, justify=tk.LEFT,
-                        background="#1e1e1e", foreground="#000000",
+                        background="#ffffe0", foreground="#000000",
                         relief=tk.SOLID, borderwidth=1,
-                        font=("Arial", 9), wraplength=400)  # Wrap text at 400 pixels
+                        font=("Arial", 9), wraplength=400)
         label.pack()
         
-        # Update to get actual size
         tw.update_idletasks()
-        
-        # Get screen dimensions
-        screen_width = tw.winfo_screenwidth()
-        screen_height = tw.winfo_screenheight()
-        
-        # Get tooltip dimensions
         tip_width = tw.winfo_width()
         tip_height = tw.winfo_height()
         
-        # Position tooltip near cursor, with offset
         offset_x = 15
         offset_y = 20
         
-        # Calculate position
-        pos_x = x + offset_x
-        pos_y = y + offset_y
+        pos_x = cursor_x + offset_x
+        pos_y = cursor_y + offset_y
         
-        # Adjust if going off right edge
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        
         if pos_x + tip_width > screen_width:
-            pos_x = x - tip_width - offset_x
-        
-        # Adjust if going off left edge
+            pos_x = cursor_x - tip_width - offset_x
         if pos_x < 0:
             pos_x = 5
-        
-        # Adjust if going off bottom edge
         if pos_y + tip_height > screen_height:
-            pos_y = y - tip_height - offset_y
-        
-        # Adjust if going off top edge
+            pos_y = cursor_y - tip_height - offset_y
         if pos_y < 0:
             pos_y = 5
         
-        # Set the position
         tw.wm_geometry(f"+{int(pos_x)}+{int(pos_y)}")
     
     def leave(self, event=None):

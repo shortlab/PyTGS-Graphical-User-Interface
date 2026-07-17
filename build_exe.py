@@ -102,7 +102,6 @@ def build_executable(version):
         f"--icon={icon_path}",
         "--add-data=config.yaml;.",
         f"--add-data={icon_path};.",
-        f"--add-data=dihomodyne_beams_icon.png;.",
         
         # Basic hidden imports
         "--hidden-import=PIL",
