@@ -73,5 +73,6 @@ The package includes tests that validate correctness of the analysis pipeline us
 
 To run the tests, use the following command:
 ```bash
-pytest tests/test.py -v
+python TGS_validator.py
 ```
+Which will run through the 11 pairs of reference data, calibrate and then process these data using the local scripts and provide a report of any discrepancies.
