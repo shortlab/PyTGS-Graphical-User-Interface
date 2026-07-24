@@ -1,7 +1,7 @@
 # PyTGS
 Repository for a GUI that handles acquisition, processing and display of di-homodyne transient grating signals. Based on the PyTGS script created by A. Aurora and stemming from scripts by C. A. Dennett, B.R. Dacus, A.P.C. Wylie, E. Botica Artalejo, K. Zoubkova and S. Engebretson. 
 
-To run on Windows, download and open the executable file in the dist folder. For now, a popup will appear warning you against unsigned software, you may click advanced and run anyway to bypass this. 
+To run on Windows without any coding interfacing, download and open the executable file in the dist folder. For now, a popup will appear warning you against unsigned software, you may click advanced and run anyway to bypass this. 
 
 For Python users on Windows and elsewhere:
 
@@ -73,5 +73,6 @@ The package includes tests that validate correctness of the analysis pipeline us
 
 To run the tests, use the following command:
 ```bash
-pytest tests/test.py -v
+python TGS_validator.py
 ```
+Which will run through the 11 pairs of reference data, calibrate and then process these data using the local scripts and provide a report of any discrepancies.
