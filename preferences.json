@@ -1,13 +1,14 @@
 {
   "scope_type": "Rigol",
-  "scope_address": "TCPIP::169.254.228.210::INSTR",
-  "data_directory": "C:\\Users\\short\\Documents\\Data",
-  "study_name": "Tungsten_Calibration",
-  "run_name": "spot1",
-  "operator": "Angus",
-  "acq_grating": "6.4",
-  "num_traces": "8192",
+  "scope_address": "TCPIP::169.254.112.67::INSTR",
+  "data_directory": "C:/Users/LabAdmin/Documents/data/test",
+  "study_name": "Test_after_flippingChannels",
+  "run_name": "spot_fixedplots",
+  "operator": "Alexis",
+  "acq_grating": "8.8",
+  "num_traces": "10000",
   "trigger_rate": "1",
   "continuous_acq": false,
-  "autofit": true
+  "autofit": true,
+  "debug_mode": true
 }

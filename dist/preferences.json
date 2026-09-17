@@ -1,13 +1,13 @@
 {
   "scope_type": "Rigol",
-  "scope_address": "TCPIP::169.254.228.210::INSTR",
-  "data_directory": "C:\\Users\\short\\Documents\\Data",
-  "study_name": "Tungsten_Calibration",
-  "run_name": "spot1",
-  "operator": "Angus",
+  "scope_address": "TCPIP::169.254.112.67::INSTR",
+  "data_directory": "C:/Users/LabAdmin/Documents/data/W_Al2O3/09-04-2026",
+  "study_name": "W_Al2O3",
+  "run_name": "kn2499-6",
+  "operator": "Garrett + Ewan",
   "acq_grating": "6.4",
-  "num_traces": "8192",
-  "trigger_rate": "1",
+  "num_traces": "10000",
+  "trigger_rate": "1.0",
   "continuous_acq": false,
-  "autofit": true
+  "autofit": false
 }

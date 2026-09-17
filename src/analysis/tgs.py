@@ -68,7 +68,10 @@ def tgs_fit(config: dict, paths: Paths, file_idx: int, pos_file: str, neg_file: 
 
     # Thermal fit
     thermal_p0 = [0.05, 5e-4]
-    popt, _ = curve_fit(lambda x, A, alpha: thermal_function(x, A, 0, 0, alpha, 0, 0, 0, 0), signal[:, 0], signal[:, 1], p0=thermal_p0)
+    #lower_bounds, upper_bounds = [-np.inf, 0], [np.inf, 1] # bounds for the thermal fit parameters: A and alpha (upper bound for alpha was set to 1000x diffusivity of Ag at 300 K)
+    lower_bounds, upper_bounds = [-np.inf, -np.inf], [np.inf, np.inf] # no bounds for the thermal fit parameters
+    
+    popt, _ = curve_fit(lambda x, A, alpha: thermal_function(x, A, 0, 0, alpha, 0, 0, 0, 0), signal[:, 0], signal[:, 1], p0=thermal_p0, bounds=(lower_bounds, upper_bounds))
     A, alpha = popt
     if alpha <= 0:
         alpha = 1e-6
@@ -87,12 +90,19 @@ def tgs_fit(config: dict, paths: Paths, file_idx: int, pos_file: str, neg_file: 
         displacement = q * np.sqrt(alpha / np.pi)
         reflectance = (q ** 2 * alpha + 1 / (2 * max_time))
         beta = displacement / reflectance
-        popt, _ = curve_fit(lambda x, A, alpha: thermal_function(x, A, 0, 0, alpha, beta, 0, 0, 0), signal[start_idx:end_idx, 0], signal[start_idx:end_idx, 1], p0=thermal_p0)
+        popt, _ = curve_fit(lambda x, A, alpha: thermal_function(x, A, 0, 0, alpha, beta, 0, 0, 0), signal[start_idx:end_idx, 0], signal[start_idx:end_idx, 1], p0=thermal_p0, bounds=(lower_bounds, upper_bounds))
         A, alpha = popt
 
     # Functional fit
     functional_p0 = [0.05, 0.05, 0, alpha, beta, 0, tau, f]
-    tgs_popt, tgs_pcov = curve_fit(functional_function, signal[start_idx:end_idx, 0], signal[start_idx:end_idx, 1], p0=functional_p0, maxfev=maxfev)
+    #lower_bounds, upper_bounds = [-np.inf, -np.inf, -np.inf, 0, 0, -np.inf, -np.inf, 0.1e9], [np.inf, np.inf, np.inf, 1, np.inf, np.inf, np.inf, 2e9] 
+    lower_bounds, upper_bounds = [-np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf] # no bounds for the functional fit parameters
+    
+    # A, B, C, alpha, beta, theta, tau, f 
+    # alpha should be positive. Its upper bound is set to 1000x diffusivity of Ag at 300 K
+    # beta should be positive. 
+    # bounds for f are relative to the low frequency noise threshold and the BW of the APDs
+    tgs_popt, tgs_pcov = curve_fit(functional_function, signal[start_idx:end_idx, 0], signal[start_idx:end_idx, 1], p0=functional_p0, bounds=(lower_bounds, upper_bounds), maxfev=maxfev)
     A, B, C, alpha, beta, theta, tau, f = tgs_popt
     A_err, B_err, C_err, alpha_err, beta_err, theta_err, tau_err, f_err = np.sqrt(np.diag(tgs_pcov))
 

@@ -1,4 +1,4 @@
-path: C:\Users\apcwy\OneDrive - Massachusetts Institute of Technology\MIT\TGS\Data\UZr\U30Zr_U30Zr\2026-07-07
+path: C:\Users\LabAdmin\Documents\data\test\Test_after_flippingChannels\2026-08-12
 study_names: ''
 idxs: ''
 signal_process:
@@ -6,9 +6,9 @@ signal_process:
   null_point: 2
   initial_samples: 50
   baseline_correction:
-    enabled: false
-    pos: ''
-    neg: ''
+    enabled: true
+    pos: C:/Users/LabAdmin/Documents/data/test/Test_after_fftfix/2026-08-12/Test_after_fftfix_2026-08-12_8.8_spot_100ns-baseline-POS-1.txt
+    neg: C:/Users/LabAdmin/Documents/data/test/Test_after_fftfix/2026-08-12/Test_after_fftfix_2026-08-12_8.8_spot_100ns-baseline-NEG-1.txt
 fft:
   signal_proportion: 0.5
   use_derivative: true
@@ -16,7 +16,7 @@ fft:
 lorentzian:
   signal_proportion: 1.0
   frequency_bounds:
-  - 0.1
+  - 0.01
   - 0.9
   dc_filter_range:
   - 0
@@ -24,11 +24,11 @@ lorentzian:
   bimodal_fit: false
   use_skewed_super_lorentzian: false
 tgs:
-  grating_spacing: 3.5407
+  grating_spacing: 8.704246
   signal_proportion: 1.0
   maxfev: 1000000
 plot:
-  signal_process: false
+  signal_process: true
   fft_lorentzian: true
   tgs: true
   settings:

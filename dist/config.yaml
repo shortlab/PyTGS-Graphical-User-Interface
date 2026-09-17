@@ -1,35 +1,35 @@
-path: example
-study_names: null
-idxs: null
+path: C:\Users\LabAdmin\Documents\data\W_Al2O3\09-04-2026\W_Al2O3\2026-09-04
+study_names: ''
+idxs: ''
 signal_process:
   heterodyne: di-homodyne
-  null_point: 2
+  null_point: 1
   initial_samples: 50
   baseline_correction:
-    enabled: false
-    pos: null
-    neg: null
+    enabled: true
+    pos: C:\Users\LabAdmin\Documents\data\W_Al2O3\09-04-2026\W_Al2O3\2026-09-04\W_Al2O3_2026-09-04_6.4_spot1-baseline-POS-1.txt
+    neg: C:\Users\LabAdmin\Documents\data\W_Al2O3\09-04-2026\W_Al2O3\2026-09-04\W_Al2O3_2026-09-04_6.4_spot1-baseline-NEG-1.txt
 fft:
   signal_proportion: 1.0
   use_derivative: true
   analysis_type: psd
 lorentzian:
-  signal_proportion: 1
+  signal_proportion: 1.0
   frequency_bounds:
-  - 0.1
-  - 0.9
+  - 0.25
+  - 0.45
   dc_filter_range:
   - 0
   - 50000
   bimodal_fit: false
   use_skewed_super_lorentzian: false
 tgs:
-  grating_spacing: 3.5276
-  signal_proportion: 1
+  grating_spacing: 6.66475
+  signal_proportion: 1.0
   maxfev: 1000000
 plot:
   signal_process: true
   fft_lorentzian: true
   tgs: true
   settings:
-    num_points: null
+    num_points: 10000

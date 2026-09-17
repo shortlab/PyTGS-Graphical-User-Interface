@@ -896,8 +896,14 @@ class TGSApp:
         self.test_btn = test_btn  # Store reference AFTER creation
 
         refresh_btn = self.create_button(btn_container, text="Refresh", command=self.refresh_scope_addresses)
-        refresh_btn.pack(side='left')
+        refresh_btn.pack(side='left', padx=(0, 10))
         self.refresh_btn = refresh_btn  # Store reference AFTER creation
+
+        self.debug_mode_var = tk.BooleanVar(value=False)
+        self.debug_mode_checkbox = ttk.Checkbutton(
+            btn_container, text="Debug mode", variable=self.debug_mode_var
+        )
+        self.debug_mode_checkbox.pack(side='left')
         
         # Row 3: Study Name and Run Name (2 columns)
         row3 = ttk.Frame(frame, style='Panel.TFrame')
@@ -925,7 +931,7 @@ class TGSApp:
         self.operator_entry = ttk.Entry(row4, textvariable=self.operator_var, width=10)
         self.operator_entry.pack(side='left', padx=(0, 15))
         
-        lbl2 = ttk.Label(row4, text="Grating (µm):", width=12, anchor='e')
+        lbl2 = ttk.Label(row4, text="Grating spacing Λ (µm):", width=18, anchor='e')
         lbl2.pack(side='left', padx=(0, 8))
         grating_options = ['1.6', '1.9', '2.2', '2.5', '2.8', '3.1', '3.4', '3.7', 
                         '4.0', '4.2', '4.4', '4.6', '4.9', '5.2', '5.5', '5.8', 
@@ -1064,16 +1070,17 @@ class TGSApp:
         self.add_tooltip(self.scope_type_combo, "Select oscilloscope type (Rigol or LeCroy)")
         self.add_tooltip(test_btn, "Test connection to the oscilloscope")
         self.add_tooltip(refresh_btn, "Scan for available oscilloscope addresses")
+        self.add_tooltip(self.debug_mode_checkbox, "Log scope settings and waveform transfer details during acquisition")
         self.add_tooltip(self.study_entry, "Study name - creates a folder with this name")
         self.add_tooltip(self.run_entry, "Run name - used in filename")
         self.add_tooltip(self.operator_entry, "Operator name")
-        self.add_tooltip(self.grating_combo, "Grating spacing in micrometers (µm)")
+        self.add_tooltip(self.grating_combo, "Grating spacing Λ in micrometers (µm)")
         self.add_tooltip(self.traces_spin, "Number of waveforms to average")
         self.add_tooltip(self.trigger_spin, "Trigger rate in kHz")
         self.add_tooltip(self.data_dir_entry, "Directory where data files will be saved")
         self.add_tooltip(self.browse_button, "Browse to select data directory")
         self.add_tooltip(self.acquire_button, "Acquire data from oscilloscope")
-        self.add_tooltip(self.acquire_calib_button, "Acquire data and use it for grating spacing calibration")
+        self.add_tooltip(self.acquire_calib_button, "Acquire data and use it for grating spacing Λ calibration")
         self.add_tooltip(self.stop_acq_button, "Stop continuous acquisition")
         self.add_tooltip(self.continuous_checkbox, "Continuously acquire data until Stop button is pressed")
         self.add_tooltip(self.autofit_checkbox, "Automatically fit and display results after each acquisition")
@@ -1239,6 +1246,7 @@ class TGSApp:
         
         self.continuous_acq_var.trace_add('write', lambda *args: self.save_preferences())
         self.autofit_var.trace_add('write', lambda *args: self.save_preferences())
+        self.debug_mode_var.trace_add('write', lambda *args: self.save_preferences())
 
     def _update_calibration_from_acquisition(self, grating_spacing_um, frequency):
         """Update the calibration display and config with the new grating spacing"""
@@ -2273,27 +2281,44 @@ class TGSApp:
         else:
             self.acq_status_var.set("Ready - Calibration failed")
 
-    def _diagnose_scope_settings(self, scope):
-        """Diagnostic: print all relevant scope settings"""
+    def _diagnose_scope_settings(self, scope, preamble=None, transferred_points=None):
+        """Diagnostic: print scope settings when debug mode is enabled."""
+        if not self.debug_mode_var.get():
+            return
+
         try:
             if self.current_scope_type == self.SCOPE_RIGOL:
                 timebase = scope.query(":TIMebase:MAIN:SCALe?")
                 timebase_offset = scope.query(":TIMebase:MAIN:OFFSet?")
                 sample_rate = scope.query(":ACQuire:SRATe?")
                 mem_depth = scope.query(":ACQuire:MDEPth?")
+                waveform_mode = scope.query(":WAVeform:MODE?")
                 waveform_points = scope.query(":WAVeform:POINts?")
             else:  # LeCroy
                 timebase = scope.query("TDIV?")
                 timebase_offset = scope.query("TRDL?")
                 sample_rate = scope.query("SAMPLE_RATE?")
                 mem_depth = scope.query("MEM_DEPTH?")
+                waveform_mode = None
                 waveform_points = scope.query("WAVEFORM_SETUP? NUM_POINTS")
             
             self.log_message(f"  DIAG: Timebase={timebase.strip()} s/div")
             self.log_message(f"  DIAG: Offset={timebase_offset.strip()} s")
             self.log_message(f"  DIAG: Sample Rate={sample_rate.strip()} Sa/s")
             self.log_message(f"  DIAG: Memory Depth={mem_depth.strip()}")
+            if waveform_mode is not None:
+                self.log_message(f"  DIAG: Waveform Mode={waveform_mode.strip()}")
             self.log_message(f"  DIAG: Waveform Points={waveform_points.strip()}")
+            if preamble is not None:
+                self.log_message(
+                    f"  DIAG: Preamble nPts={int(preamble[2])}, dt={preamble[4]:.6e} s, "
+                    f"xorigin={preamble[5]:.6e} s"
+                )
+            if transferred_points is not None:
+                self.log_message(
+                    f"  DIAG: Transferred CH2={transferred_points[0]} pts, "
+                    f"CH3={transferred_points[1]} pts"
+                )
         except Exception as e:
             self.log_message(f"  DIAG error: {e}")
 
@@ -2355,8 +2380,9 @@ class TGSApp:
             self.orig_offset = orig_offset
             self.scope_connection_string = scope.resource_name
             
-            # Clear and configure averaging
+            # Clear and configure averaging with full memory depth
             scope.write("*CLS")
+            scope.write(":ACQuire:MDEPth AUTO")
             scope.write(":ACQuire:TYPE AVER")
             scope.write(f":ACQuire:AVERages {num_traces}")
             
@@ -2386,13 +2412,11 @@ class TGSApp:
             scope.write(":STOP")
             time.sleep(0.05)
             
-            # Configure waveform settings
-            scope.write(":WAVeform:POINts MAX")
-            scope.write(":WAVeform:MODE NORM")
-            scope.write(":WAVeform:FORMat WORD")
-            
-            # Get preamble from Channel 2
+            # Configure waveform settings for full memory transfer (RAW mode)
             scope.write(":WAVeform:SOURce CHANnel2")
+            scope.write(":WAVeform:MODE RAW")
+            scope.write(":WAVeform:FORMat WORD")
+            scope.write(":WAVeform:POINts MAX")
             time.sleep(0.05)
             preamble = scope.query(":WAVeform:PREamble?")
             p = [float(x) for x in preamble.split(',')]
@@ -2418,6 +2442,12 @@ class TGSApp:
             data3 = scope.query_binary_values(":WAVeform:DATA?", datatype='H', is_big_endian=False)
             Y_neg_raw = np.array(data3, dtype=np.float64)
             Y_neg = (Y_neg_raw - y_origin) * y_increment
+
+            self._diagnose_scope_settings(
+                scope,
+                preamble=p,
+                transferred_points=(len(Y_pos), len(Y_neg)),
+            )
             
             # Calculate time arrays
             i_pos = np.arange(len(Y_pos))
@@ -3348,8 +3378,9 @@ class TGSApp:
             
             # Also update the fit preview if this is the most recent
             if file_id in self.file_to_fit_params:
-                # Load plot data from disk
-                fit_data = self.load_plot_data_from_disk(file_id, pos_file)
+                fit_data = self.file_to_fit_plot_data.get(file_id)
+                if fit_data is None:
+                    fit_data = self.load_plot_data_from_disk(file_id, pos_file)
                 if fit_data is not None:
                     self.root.after(200, lambda fd=fit_data: self.create_interactive_plot(fd))
             
@@ -3454,9 +3485,28 @@ class TGSApp:
             else:
                 fit_data_for_plot['fft_freq'] = None
                 fit_data_for_plot['fft_amp'] = None
+
+            if lorentzian_curve is not None and len(lorentzian_curve) > 0 and fft_full is not None and len(fft_full) > 0:
+                fft_freqs_ghz = fft_full[:, 0]
+                fft_amps = fft_full[:, 1]
+                freq_bounds = file_config['lorentzian'].get('frequency_bounds', [0.1, 0.9])
+                lorentzian_freqs_ghz = np.linspace(freq_bounds[0], freq_bounds[1], len(lorentzian_curve))
+
+                mask = (fft_freqs_ghz >= freq_bounds[0]) & (fft_freqs_ghz <= freq_bounds[1])
+                fft_peak_in_range = np.max(fft_amps[mask]) if np.any(mask) else np.max(fft_amps)
+                lorentzian_peak_value = np.max(lorentzian_curve)
+                lorentzian_curve_scaled = (
+                    lorentzian_curve * (fft_peak_in_range / lorentzian_peak_value)
+                    if lorentzian_peak_value > 0 else lorentzian_curve
+                )
+
+                fit_data_for_plot['lorentzian_freq'] = lorentzian_freqs_ghz
+                fit_data_for_plot['lorentzian_fit'] = lorentzian_curve_scaled
+            else:
+                fit_data_for_plot['lorentzian_fit'] = None
             
-            # Store only fit parameters (plot data will be regenerated on demand)
             self.file_to_fit_params[file_id] = fit_params
+            self.file_to_fit_plot_data[file_id] = fit_data_for_plot
             
             # Log success
             self.log_message(f"  Auto-fit SUCCESS for {file_id}")
@@ -3778,7 +3828,7 @@ class TGSApp:
 
     def build_calibration_section(self, parent):
         """Section 1: Calibration (grating spacing)"""
-        frame = ttk.LabelFrame(parent, text="Calibration (grating spacing)", padding=(15, 10))
+        frame = ttk.LabelFrame(parent, text="Calibration (grating spacing Λ)", padding=(15, 10))
         frame.pack(fill='x', pady=(0, 15))
         
         # File selection row
@@ -3798,14 +3848,14 @@ class TGSApp:
         spacing_row = ttk.Frame(frame, style='Panel.TFrame')
         spacing_row.pack(fill='x', pady=8)
         
-        lbl = ttk.Label(spacing_row, text="Grating (µm):", background='')
+        lbl = ttk.Label(spacing_row, text="Grating spacing Λ (µm):", background='')
         lbl.pack(side='left', padx=(0, 15))
-        self.add_tooltip(lbl, "Calculated grating spacing from calibration (or manually entered)")
+        self.add_tooltip(lbl, "Calculated grating spacing Λ from calibration (or manually entered)")
         
         self.grating_edit = ttk.Entry(spacing_row, width=15)
         self.grating_edit.pack(side='left', padx=(0, 15))
         self.grating_edit.insert(0, "0")
-        self.add_tooltip(self.grating_edit, "Grating spacing in micrometers (µm)")
+        self.add_tooltip(self.grating_edit, "Grating spacing Λ in micrometers (µm)")
         
         btn = self.create_button(spacing_row, text="Run calibration", 
                     command=self.run_calibration)
@@ -4677,8 +4727,10 @@ class TGSApp:
             self.clear_results_table()
             return
         
-        # Force a fresh regeneration of plot data from disk
-        fit_data = self.load_plot_data_from_disk(file_id, pos_file)
+        # Use cached plot data when available, otherwise regenerate from disk
+        fit_data = self.file_to_fit_plot_data.get(file_id)
+        if fit_data is None:
+            fit_data = self.load_plot_data_from_disk(file_id, pos_file)
         
         if fit_data is not None and 'time_raw' in fit_data and 'signal_raw' in fit_data:
             # Make sure we have the fit parameters
@@ -5209,8 +5261,8 @@ class TGSApp:
                 'params': [
                     {
                         'key': 'tgs.grating_spacing',
-                        'label': 'Grating spacing (µm)',  # Changed from "Grating Spacing (µm)"
-                        'tooltip': 'TGS probe grating spacing in micrometers',
+                        'label': 'Grating spacing Λ (µm)',  # Changed from "Grating Spacing (µm)"
+                        'tooltip': 'TGS probe grating spacing Λ in micrometers',
                         'type': 'number',
                         'value_type': float,
                         'default': 3.5276
@@ -5497,6 +5549,7 @@ class TGSApp:
             "trigger_rate": self.trigger_rate_var.get().strip(),
             "continuous_acq": self.continuous_acq_var.get(),
             "autofit": self.autofit_var.get(),
+            "debug_mode": self.debug_mode_var.get(),
         }
         
         # Determine preferences file location
@@ -5551,6 +5604,8 @@ class TGSApp:
                 self.continuous_acq_var.set(preferences["continuous_acq"])
             if "autofit" in preferences:
                 self.autofit_var.set(preferences["autofit"])
+            if "debug_mode" in preferences:
+                self.debug_mode_var.set(preferences["debug_mode"])
             
             self.log_message("Loaded saved preferences")
         except Exception as e:

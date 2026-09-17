@@ -42,6 +42,8 @@ def fft(saw_signal: np.ndarray, signal_proportion: float = 0.9, use_derivative: 
         derivative = np.diff(amplitude) / t_step
         derivative /= np.max(derivative)
         saw_signal = np.vstack((time[:-1], derivative)).T
+        time = saw_signal[:, 0]
+        amplitude = saw_signal[:, 1]
 
     num_points = len(saw_signal)
     fs = num_points / (time[-1] - time[0])

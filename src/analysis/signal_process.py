@@ -10,9 +10,7 @@ from src.core.plots import plot_signal_process
 PROMINENCE_FACTOR = 5
 
 OFFSET_20NS = 19
-END_TIME_20NS = 2e-7
 OFFSET_50NS = 23
-END_TIME_50NS = 5e-7
 
 LARGE_GRATING_THRESHOLD = 6
 LARGE_GRATING_INDEX = 20
@@ -22,14 +20,15 @@ SMALL_GRATING_START_POINT = 0
 
 GRATING_SPACING_THRESHOLD = 8
 TIME_OFFSET_INDEX = 20
+TIME_DIV_THRESHOLD_S = 3.5e-7  # distinguishes ~20 ns/div vs wider timebase for pump offset
 
 def find_pump_time(pos_signal: np.ndarray, neg_signal: np.ndarray, initial_samples: int = 50) -> Tuple[int, float]:
     """
     Approximate pump time index by analyzing the signal's second derivative.
 
     Locates the pump time index by finding the maximum of the second derivative
-    of the differential signal (positive - negative). Includes adjustments for
-    both 20 ns and 50 ns oscilloscope time divisions.
+    of the differential signal (positive - negative). The analysis window spans
+    the full acquired trace; pump-index offset depends on the time/div setting.
 
     Parameters:
         pos_signal (np.ndarray): positive signal array of shape (N, 2) where N is the number of samples
@@ -61,16 +60,16 @@ def find_pump_time(pos_signal: np.ndarray, neg_signal: np.ndarray, initial_sampl
         if peak_idxs[max_peak_idx] < max_second_derivative_idx:
             max_second_derivative_idx = peak_idxs[max_peak_idx]
 
-    # Adjust time index and determine end time
-    time_len = len(signal[:, 0]) / 1e3
-    if time_len < 5:
-        # 20 ns oscilloscope
-        end_time = END_TIME_20NS
+    # Adjust pump index and use the full acquisition window as the end time
+    time_window = pos_signal[-1, 0] - pos_signal[0, 0]
+    if time_window <= TIME_DIV_THRESHOLD_S:
+        # ~20 ns/div (200 ns window)
         pump_time_idx = max(0, max_second_derivative_idx - OFFSET_20NS)
     else:
-        # 50 ns oscilloscope
-        end_time = END_TIME_50NS
+        # ~50 ns/div and wider windows
         pump_time_idx = max(0, max_second_derivative_idx - OFFSET_50NS)
+
+    end_time = time_window
 
     return pump_time_idx, end_time
 
@@ -210,8 +209,13 @@ def process_signal(config: dict, paths: Paths, file_idx: int, pos_file: str, neg
     neg, pos = neg[:N], pos[:N]
 
     if baseline_correction is not None and baseline_correction['enabled']:
-        pos_baseline = read_data(baseline_correction['pos'])[:N]
-        neg_baseline = read_data(baseline_correction['neg'])[:N]
+        pos_baseline = read_data(baseline_correction['pos'])
+        neg_baseline = read_data(baseline_correction['neg'])
+        if len(pos_baseline) != N or len(neg_baseline) != N:
+            raise ValueError(
+                f'Baseline point count ({len(pos_baseline)}) does not match signal point count ({N}). '
+                'Re-acquire baseline at the same scope settings as your data.'
+            )
         pos[:, 1] -= pos_baseline[:, 1]
         neg[:, 1] -= neg_baseline[:, 1]
 
